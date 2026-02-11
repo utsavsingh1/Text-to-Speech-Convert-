@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text to Speech Converter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            resize: vertical;
+            margin-bottom: 20px;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        select, input[type="range"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        input[type="range"] {
+            cursor: pointer;
+        }
+        
+        .buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        
+        button {
+            padding: 15px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        button:first-child {
+            background: #667eea;
+            color: white;
+        }
+        
+        button:first-child:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+        
+        button:last-child {
+            background: #48bb78;
+            color: white;
+        }
+        
+        button:last-child:hover {
+            background: #38a169;
+            transform: translateY(-2px);
+        }
+        
+        .history-section {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 2px solid #eee;
+        }
+        
+        .history-section h2 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .history-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .history-item p {
+            margin: 5px 0;
+            color: #666;
+        }
+        
+        .history-item .text {
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .history-item .time {
+            font-size: 12px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔊 Text to Speech Converter</h1>
+        
+        <textarea id="textInput" placeholder="Enter your text here..."></textarea>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label>Voice:</label>
+                <select id="voiceSelect"></select>
+            </div>
+            
+            <div class="control-group">
+                <label>Speed: <span id="rateValue">1</span></label>
+                <input type="range" id="rateSlider" min="0.5" max="2" step="0.1" value="1">
+            </div>
+            
+            <div class="control-group">
+                <label>Pitch: <span id="pitchValue">1</span></label>
+                <input type="range" id="pitchSlider" min="0.5" max="2" step="0.1" value="1">
+            </div>
+        </div>
+        
+        <div class="buttons">
+            <button onclick="speak()">🔊 Speak</button>
+            <button onclick="saveHistory()">💾 Save to History</button>
+        </div>
+        
+        <div class="history-section">
+            <h2>📜 History</h2>
+            <div id="historyList"></div>
+        </div>
+    </div>
+    
+    <script>
+        let voices = [];
+        const synth = window.speechSynthesis;
+        
+        function loadVoices() {
+            voices = synth.getVoices();
+            const voiceSelect = document.getElementById('voiceSelect');
+            voiceSelect.innerHTML = '';
+            
+            voices.forEach((voice, i) => {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = `${voice.name} (${voice.lang})`;
+                voiceSelect.appendChild(option);
+            });
+        }
+        
+        if (synth.onvoiceschanged !== undefined) {
+            synth.onvoiceschanged = loadVoices;
+        }
+        loadVoices();
+        
+        document.getElementById('rateSlider').addEventListener('input', (e) => {
+            document.getElementById('rateValue').textContent = e.target.value;
+        });
+        
+        document.getElementById('pitchSlider').addEventListener('input', (e) => {
+            document.getElementById('pitchValue').textContent = e.target.value;
+        });
+        
+        function speak() {
+            const text = document.getElementById('textInput').value;
+            if (!text) {
+                alert('Please enter some text!');
+                return;
+            }
+            
+            synth.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            const voiceIndex = document.getElementById('voiceSelect').value;
+            utterance.voice = voices[voiceIndex];
+            utterance.rate = parseFloat(document.getElementById('rateSlider').value);
+            utterance.pitch = parseFloat(document.getElementById('pitchSlider').value);
+            
+            synth.speak(utterance);
+        }
+        
+        async function saveHistory() {
+            const text = document.getElementById('textInput').value;
+            if (!text) {
+                alert('Please enter some text!');
+                return;
+            }
+            
+            const voiceIndex = document.getElementById('voiceSelect').value;
+            const voice = voices[voiceIndex]?.name || 'Default';
+            const rate = document.getElementById('rateSlider').value;
+            const pitch = document.getElementById('pitchSlider').value;
+            
+            await fetch('/api/save', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({text, voice, rate, pitch})
+            });
+            
+            loadHistory();
+        }
+        
+        async function loadHistory() {
+            const response = await fetch('/api/history');
+            const history = await response.json();
+            const historyList = document.getElementById('historyList');
+            
+            if (history.length === 0) {
+                historyList.innerHTML = '<p style="color: #999; text-align: center;">No history yet</p>';
+                return;
+            }
+            
+            historyList.innerHTML = history.map(item => `
+                <div class="history-item">
+                    <p class="text">${item.text.substring(0, 100)}${item.text.length > 100 ? '...' : ''}</p>
+                    <p>Voice: ${item.voice} | Speed: ${item.rate} | Pitch: ${item.pitch}</p>
+                    <p class="time">${item.timestamp}</p>
+                </div>
+            `).join('');
+        }
+        
+        loadHistory();
+    </script>
+</body>
+</html>
